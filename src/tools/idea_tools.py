@@ -114,7 +114,7 @@ class IdeaTools:
                     "id": result["id"],
                     "title": result["title"],
                     "description": result["description"][:200] + "..." if len(result["description"]) > 200 else result["description"],
-                    "submitter_name": result["submitter_name"],
+                    "contributor": result["contributor"],
                     "department": result["department"],
                     "status": result["status"],
                     "submission_date": result["submission_date"].isoformat() if result["submission_date"] else None,
@@ -136,7 +136,7 @@ class IdeaTools:
             # Build keyword search query
             search_query = """
                 SELECT 
-                    id, title, description, submitter_name, department,
+                    id, title, description, contributor, department,
                     status, submission_date,
                     ts_rank(to_tsvector('english', title || ' ' || description), plainto_tsquery('english', $1)) as rank
                 FROM ideas
@@ -160,7 +160,7 @@ class IdeaTools:
                     "id": result["id"],
                     "title": result["title"],
                     "description": result["description"][:200] + "..." if len(result["description"]) > 200 else result["description"],
-                    "submitter_name": result["submitter_name"],
+                    "contributor": result["contributor"],
                     "department": result["department"],
                     "status": result["status"],
                     "submission_date": result["submission_date"].isoformat() if result["submission_date"] else None,
@@ -194,7 +194,7 @@ class IdeaTools:
                 "title": idea["title"],
                 "description": idea["description"],
                 "submitter_info": {
-                    "name": idea["submitter_name"],
+                    "name": idea["contributor"],
                     "email": idea["submitter_email"],
                     "department": idea["department"]
                 },
@@ -254,7 +254,7 @@ class IdeaTools:
                     "id": similar["id"],
                     "title": similar["title"],
                     "description": similar["description"][:150] + "..." if len(similar["description"]) > 150 else similar["description"],
-                    "submitter_name": similar["submitter_name"],
+                    "contributor": similar["contributor"],
                     "department": similar["department"],
                     "status": similar["status"],
                     "similarity_score": round(similar["similarity"], 3),

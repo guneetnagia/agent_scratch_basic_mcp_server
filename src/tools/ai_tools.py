@@ -10,14 +10,10 @@ from typing import Any, Dict, List, Optional
 import json
 from datetime import datetime
 
-try:
-    import google.generativeai as genai
-except ImportError:
-    genai = None
-    logging.warning("Google GenerativeAI not installed. AI tools will be limited.")
 
 import sys
 import os
+import requests
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from utils.database import DatabaseConnection
@@ -36,19 +32,40 @@ class AITools:
         self._initialize_ai_model()
     
     def _initialize_ai_model(self):
-        """Initialize the AI model for generation tasks."""
-        try:
-            if not genai or not self.config.ai.google_api_key:
-                logger.warning("Google AI not available. AI tools will be limited.")
-                return
-            
-            genai.configure(api_key=self.config.ai.google_api_key)
-            self.model = genai.GenerativeModel(self.config.ai.llm_model)
-            logger.info("AI model initialized successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize AI model: {e}")
+        """Initialize AI model based on provider."""
+        provider = self.config.ai.provider
+
+        if provider == "ollama":
+            self.model = "ollama"
+            logger.info("Using Ollama for AI")
+        elif provider == "google":
+            logger.warning("Google provider not supported anymore in this setup")
             self.model = None
+        else:
+            logger.warning("No valid AI provider configured")
+            self.model = None
+
+    def _call_ollama(self, prompt: str) -> str:
+        """Call Ollama local model"""
+        try:
+            response = requests.post(
+                f"{self.config.ai.ollama_base_url}/api/generate",
+                json={
+                    "model": self.config.ai.ollama_model,
+                    "prompt": prompt,
+                    "stream": False
+                },
+                timeout=60
+            )
+
+            response.raise_for_status()
+            return response.json().get("response", "")
+
+        except Exception as e:
+            logger.error(f"Ollama call failed: {e}")
+            return ""
+        
+
     
     async def generate_summary(self, idea_id: int, 
                              summary_type: str = "brief") -> Dict[str, Any]:
@@ -81,8 +98,9 @@ class AITools:
             
             # Generate summary using AI
             try:
-                response = self.model.generate_content(prompt)
-                summary_text = response.text
+               # response = self.model.generate_content(prompt)
+               # summary_text = response.text
+               summary_text = self._call_ollama(prompt)
             except Exception as e:
                 logger.error(f"AI generation failed: {e}")
                 return await self._fallback_summary(idea, summary_type)
@@ -124,7 +142,7 @@ class AITools:
                     "idea_id": idea_id
                 }
             
-            if not self.model:
+            if self.model != "ollama":
                 return await self._fallback_feasibility(idea)
             
             # Prepare feasibility assessment prompt
@@ -132,8 +150,9 @@ class AITools:
             
             # Generate assessment using AI
             try:
-                response = self.model.generate_content(prompt)
-                assessment_text = response.text
+               # response = self.model.generate_content(prompt)
+               # assessment_text = response.text
+                assessment_text = self._call_ollama(prompt)
                 
                 # Parse the assessment to extract structured data
                 assessment = self._parse_feasibility_assessment(assessment_text)
@@ -188,8 +207,9 @@ class AITools:
             
             # Generate improvements using AI
             try:
-                response = self.model.generate_content(prompt)
-                improvements_text = response.text
+                improvements_text = self._call_ollama(prompt)
+                #response = self.model.generate_content(prompt)
+                #improvements_text = response.text
                 
                 # Parse improvements into structured format
                 improvements = self._parse_improvements(improvements_text)
@@ -244,8 +264,9 @@ class AITools:
             
             # Generate sentiment analysis
             try:
-                response = self.model.generate_content(prompt)
-                sentiment_text = response.text
+                sentiment_text = self._call_ollama(prompt)
+                #response = self.model.generate_content(prompt)
+                #sentiment_text = response.text
                 
                 # Parse sentiment analysis
                 sentiment = self._parse_sentiment(sentiment_text)

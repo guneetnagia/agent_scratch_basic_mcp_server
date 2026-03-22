@@ -24,6 +24,13 @@ except ImportError:
     sys.exit(1)
 
 # Import our custom tools and utilities
+# Import our custom tools and utilities
+from tools.idea_tools import IdeaTools
+from tools.vector_tools import VectorTools
+from tools.contributor_tools import ContributorTools
+from tools.ai_tools import AITools
+from utils.database import DatabaseConnection
+from utils.config import MCPConfig
 
 
 logger = logging.getLogger(__name__)

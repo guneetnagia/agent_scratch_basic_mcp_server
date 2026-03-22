@@ -228,18 +228,4 @@ This MCP server is designed to work alongside the main Idea Hub application, pro
 1. **Enhance Idea Submission**: Detect duplicates and suggest improvements during submission
 2. **Smart Search**: Enable semantic search across all ideas
 3. **Contributor Matching**: Automatically suggest contributors for new ideas
-4. **AI Analysis**: Provide automated feasibility assessments and summaries
-
-## Team
-
-- **Designed By**: Nitish Singh (https://www.linkedin.com/in/nitish-singh-11aa0239/)
-- **Key Contributors**:Rishika Kumar (https://www.linkedin.com/in/riishika/) and Shubham (https://www.linkedin.com/in/shubham-chilhate-362863213/)
-
-
-## License
-
-This project is part of Company's innovation initiatives and follows internal licensing guidelines.
-
-## Support
-
-For questions or issues, please contact the development team or create an issue in the project repository.
+4. **AI Analysis**: Provide automated summary

@@ -20,21 +20,21 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DatabaseConfig:
     """Database configuration settings."""
-    host: str = "localhost"
+    host: str = "postgres-db"
     port: int = 5432
     database: str = "idea_hub"
     username: str = "postgres"
-    password: str = "password"
+    password: str = "postgres"
     
     @classmethod
     def from_env(cls) -> "DatabaseConfig":
         """Create database config from environment variables."""
         return cls(
-            host=os.getenv("DATABASE_HOST", "localhost"),
+            host=os.getenv("DATABASE_HOST", "postgres-db"),
             port=int(os.getenv("DATABASE_PORT", "5432")),
             database=os.getenv("DATABASE_NAME", "idea_hub_db"),
-            username=os.getenv("DATABASE_USER", "idea_user"),
-            password=os.getenv("DATABASE_PASSWORD", "secure_idea_pass")
+            username=os.getenv("DATABASE_USER", "postgres"),
+            password=os.getenv("DATABASE_PASSWORD", "postgres")
         )
     
     @property
@@ -46,24 +46,41 @@ class DatabaseConfig:
 @dataclass
 class AIConfig:
     """AI service configuration settings."""
+
+    # Provider selection
+    provider: str = "ollama"  # default to ollama
+
+    # OpenAI (optional)
     openai_api_key: Optional[str] = None
-    embedding_model: str = "all-MiniLM-L6-v2"  # Static - matches your existing setup
-    llm_model: str = "gpt-4o-mini"  # Static - matches your existing setup
-    max_tokens: int = 4096  # Static
-    temperature: float = 0.7  # Static
-    
+
+    # Ollama config
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3"
+
+    # Shared settings
+    embedding_model: str = "all-MiniLM-L6-v2"
+    max_tokens: int = 4096
+    temperature: float = 0.7
+
     @classmethod
     def from_env(cls) -> "AIConfig":
         """Create AI config from environment variables."""
         return cls(
-            openai_api_key=os.getenv("OPENAI_API_KEY"),  # Required for AI features
-            # All other values are static - no environment overrides needed
-            embedding_model="all-MiniLM-L6-v2",
-            llm_model="gpt-4o-mini",
-            max_tokens=4096,
-            temperature=0.7
-        )
+            # Provider
+            provider=os.getenv("LLM_PROVIDER", "ollama"),
 
+            # OpenAI (optional)
+            openai_api_key=os.getenv("OPENAI_API_KEY"),
+
+            # Ollama
+            ollama_base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+            ollama_model=os.getenv("OLLAMA_MODEL", "llama3"),
+
+            # Shared
+            embedding_model="all-MiniLM-L6-v2",
+            max_tokens=int(os.getenv("MAX_TOKENS", 4096)),
+            temperature=float(os.getenv("TEMPERATURE", 0.7)),
+        )
 
 @dataclass
 class ServerConfig:
@@ -125,8 +142,9 @@ class MCPConfig:
         errors = []
         
         # Check required AI API key
-        if not self.ai.google_api_key:
-            errors.append("GOOGLE_API_KEY is required for AI features")
+        if self.ai.provider == "google":
+            if not self.ai.google_api_key:
+                raise ValueError("Google API key is required")
         
         # Check database connection info
         if not all([self.database.host, self.database.database, 

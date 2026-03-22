@@ -118,7 +118,7 @@ class DatabaseConnection:
         """Get ideas from the database with optional filtering."""
         query = """
             SELECT 
-                id, title, description, submitter_name, submitter_email,
+                id, title, description, contributor, submitter_email,
                 department, business_value, technical_requirements,
                 status, admin_notes, submission_date, last_updated,
                 vector_embedding
@@ -141,7 +141,7 @@ class DatabaseConnection:
         """Get a specific idea by ID."""
         query = """
             SELECT 
-                id, title, description, submitter_name, submitter_email,
+                id, title, description, contributor, submitter_email,
                 department, business_value, technical_requirements,
                 status, admin_notes, submission_date, last_updated,
                 vector_embedding
@@ -156,7 +156,7 @@ class DatabaseConnection:
         """Search for ideas using vector similarity."""
         query = """
             SELECT 
-                id, title, description, submitter_name, submitter_email,
+                id, title, description, contributor, submitter_email,
                 department, business_value, technical_requirements,
                 status, submission_date,
                 1 - (vector_embedding <=> $1::vector) as similarity
