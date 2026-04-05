@@ -1,171 +1,164 @@
 """
-Idea Hub MCP Server Implementation
+Idea Hub MCP Server (Refactored with Service Layer)
 
-This module implements the core MCP server for the Idea Hub platform using FastMCP.
-It provides tools for AI agents to interact with the idea management system,
-including semantic search, duplicate detection, contributor matching, and more.
+Clean architecture:
+Tools → Services → Repositories → Infrastructure
 """
 
-import asyncio
-import json
 import logging
-from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
-import os
-import sys
-from pathlib import Path
+from typing import Optional, Dict, Any
 
-# Import MCP components
-try:
-    from fastmcp import FastMCP
-    from typing_extensions import Annotated
-except ImportError:
-    print("FastMCP dependencies not found. Please install with: pip install fastmcp")
-    sys.exit(1)
+from fastmcp import FastMCP
+from typing_extensions import Annotated
 
-# Import our custom tools and utilities
+# Services
+from src.services.search_service import SearchService
+from src.services.duplicate_service import DuplicateService
+from src.services.analysis_service import AnalysisService
+from src.services.contributor_service import ContributorService
+
+# Repositories
+from src.repositories.idea_repository import IdeaRepository
+# (add contributor repo later)
+
+# Infrastructure
+from src.infrastructure.embedding_client import EmbeddingClient
+from src.infrastructure.llm_client import LLMClient
 
 
 logger = logging.getLogger(__name__)
 
 
+# =========================
+# Context (NO GOD OBJECT)
+# =========================
 @dataclass
 class ServerContext:
-    """Context object to share resources between tools."""
-    db_connection: DatabaseConnection
-    config: MCPConfig
-    idea_tools: IdeaTools
-    vector_tools: VectorTools
-    contributor_tools: ContributorTools
-    ai_tools: AITools
+    search_service: SearchService
+    duplicate_service: DuplicateService
+    analysis_service: AnalysisService
+    contributor_service: ContributorService
 
 
+# =========================
+# MCP SERVER
+# =========================
 class IdeaHubMCPServer:
-    """Main MCP server class for Idea Hub using FastMCP."""
-    
+
     def __init__(self):
         self.app = FastMCP("Idea Hub MCP Server")
         self.context: Optional[ServerContext] = None
-        self._setup_tools()
-    
-    def _setup_tools(self):
-        """Set up MCP tools using FastMCP decorators."""
-        
+        self._register_tools()
+
+    # -------------------------
+    # Context Initialization
+    # -------------------------
+    async def _initialize_context(self):
+        if self.context:
+            return
+
+        logger.info("⚙️ Initializing services...")
+
+        # Infrastructure
+        embedding_client = EmbeddingClient()
+        llm_client = LLMClient()
+
+        # Repositories
+        idea_repo = IdeaRepository()
+
+        # Services
+        search_service = SearchService(idea_repo, embedding_client)
+        duplicate_service = DuplicateService(idea_repo, embedding_client)
+        analysis_service = AnalysisService(llm_client, idea_repo)
+
+        contributor_service = ContributorService(
+            contributor_repo=None,  # TODO: implement
+            idea_repo=idea_repo,
+            embedding_client=embedding_client
+        )
+
+        self.context = ServerContext(
+            search_service=search_service,
+            duplicate_service=duplicate_service,
+            analysis_service=analysis_service,
+            contributor_service=contributor_service
+        )
+
+        logger.info("✅ Services initialized")
+
+    # -------------------------
+    # Tool Registration
+    # -------------------------
+    def _register_tools(self):
+
         @self.app.tool()
         async def search_ideas(
-            query: Annotated[str, "Search query for ideas"],
-            search_type: Annotated[str, "Type of search (semantic, keyword, hybrid)"] = "hybrid",
-            limit: Annotated[int, "Maximum number of results"] = 10,
-            status_filter: Annotated[Optional[str], "Optional status filter"] = None
+            query: Annotated[str, "Search query"],
+            search_type: Annotated[str, "semantic | keyword | hybrid"] = "hybrid",
+            limit: Annotated[int, "Max results"] = 10,
+            status_filter: Annotated[Optional[str], "Optional status"] = None
         ) -> Dict[str, Any]:
-            """Search for ideas using semantic search or keywords."""
-            if not self.context:
-                await self._initialize_context()
-            
-            return await self.context.idea_tools.search_ideas(
+
+            await self._initialize_context()
+
+            return await self.context.search_service.search(
                 query=query,
                 search_type=search_type,
                 limit=limit,
                 status_filter=status_filter
             )
-        
-        @self.app.tool()
-        async def get_idea_details(
-            idea_id: Annotated[int, "ID of the idea to get details for"]
-        ) -> Dict[str, Any]:
-            """Get detailed information about a specific idea."""
-            if not self.context:
-                await self._initialize_context()
-            
-            return await self.context.idea_tools.get_idea_details(idea_id)
-        
+
         @self.app.tool()
         async def detect_duplicates(
-            title: Annotated[str, "Title of the idea to check for duplicates"],
-            description: Annotated[str, "Description of the idea to check"],
-            threshold: Annotated[float, "Similarity threshold (0.0-1.0)"] = 0.8
+            title: Annotated[str, "Idea title"],
+            description: Annotated[str, "Idea description"],
+            threshold: Annotated[float, "Similarity threshold"] = 0.8
         ) -> Dict[str, Any]:
-            """Detect duplicate or similar ideas."""
-            if not self.context:
-                await self._initialize_context()
-            
-            return await self.context.idea_tools.detect_duplicates(
+
+            await self._initialize_context()
+
+            return await self.context.duplicate_service.detect(
                 title=title,
                 description=description,
                 threshold=threshold
             )
-        
+
         @self.app.tool()
         async def generate_idea_summary(
-            idea_id: Annotated[int, "ID of the idea to summarize"],
-            summary_type: Annotated[str, "Type of summary (brief, detailed, technical, business)"] = "brief"
+            idea_id: Annotated[int, "Idea ID"],
+            summary_type: Annotated[str, "brief | detailed | technical"] = "brief"
         ) -> Dict[str, Any]:
-            """Generate AI summary of an idea."""
-            if not self.context:
-                await self._initialize_context()
-            
-            return await self.context.ai_tools.generate_summary(
+
+            await self._initialize_context()
+
+            return await self.context.analysis_service.generate_summary(
                 idea_id=idea_id,
                 summary_type=summary_type
             )
-        
-    
-    async def _initialize_context(self):
-        """Initialize the server context with all required components."""
-        if self.context:
-            return  # Already initialized
-            
-        logger.info("Initializing MCP server context...")
-        
-        try:
-            # Load configuration
-            config = MCPConfig()
-            
-            # Initialize database connection
-            db_connection = DatabaseConnection(config)
-            await db_connection.initialize()
-            
-            # Initialize tool classes
-            idea_tools = IdeaTools(db_connection, config)
-            vector_tools = VectorTools(db_connection, config)
-            contributor_tools = ContributorTools(db_connection, config)
-            ai_tools = AITools(db_connection, config)
-            
-            # Create context
-            self.context = ServerContext(
-                db_connection=db_connection,
-                config=config,
-                idea_tools=idea_tools,
-                vector_tools=vector_tools,
-                contributor_tools=contributor_tools,
-                ai_tools=ai_tools
-            )
-            
-            logger.info("MCP server context initialized successfully")
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize server context: {e}")
-            raise
-    
-    async def run(self):
-        """Run the MCP server."""
-        logger.info("Starting Basic Agent Scratch MCP Server...")
-        
-        try:
-            # Initialize context
+
+        @self.app.tool()
+        async def match_contributors_to_idea(
+            idea_id: Annotated[int, "Idea ID"],
+            required_skills: Annotated[list, "Skills list"],
+            max_contributors: Annotated[int, "Max contributors"] = 3
+        ) -> Dict[str, Any]:
+
             await self._initialize_context()
-            
-            # Run the FastMCP server
-            await self.app.run()
-            
-        except Exception as e:
-            logger.error(f"Server error: {e}")
-            raise
-        finally:
-            # Cleanup
-            if self.context and self.context.db_connection:
-                await self.context.db_connection.close()
-    
+
+            return await self.context.contributor_service.match(
+                idea_id=idea_id,
+                required_skills=required_skills,
+                max_contributors=max_contributors
+            )
+
+    # -------------------------
+    # Public API
+    # -------------------------
     def get_app(self):
-        """Get the FastMCP app instance."""
         return self.app
+    
+
+    async def shutdown(self):
+        from src.infrastructure.database import Database
+        await Database.disconnect()

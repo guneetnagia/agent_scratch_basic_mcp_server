@@ -1,0 +1,14 @@
+[
+  {
+    "query": "AI chatbot",
+    "relevant_ids": [1, 3, 7]
+  },
+  {
+    "query": "hotel pricing optimization",
+    "relevant_ids": [5, 9]
+  },
+  {
+    "query": "inventory management system",
+    "relevant_ids": [2, 8]
+  }
+]

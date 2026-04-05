@@ -1,30 +1,30 @@
 #!/bin/bash
-
 set -e
 
-echo "🚀 Starting Basic agent scratch MCP Server..."
+echo "🚀 Starting Idea Hub MCP Server..."
 
-# HuggingFace cache
+# =========================
+# Environment
+# =========================
 export HF_HOME=./.cache/huggingface
 export TRANSFORMERS_CACHE=./.cache/huggingface
 
-# Allow downloading models
-export HF_HUB_OFFLINE=0
-export TRANSFORMERS_OFFLINE=0
+mkdir -p "$HF_HOME"
 
-# Create cache directory
-if [ ! -d "$HF_HOME" ]; then
-    echo "📁 Creating HuggingFace cache directory: $HF_HOME"
-    mkdir -p "$HF_HOME"
-fi
+# =========================
+# Wait for DB (important)
+# =========================
+echo "⏳ Waiting for PostgreSQL..."
 
-echo "🔍 Checking MCP server import..."
+until nc -z localhost 5432; do
+  sleep 1
+done
 
-python -c "from src.main import main; print('✅ MCP server imported successfully')" || {
-    echo "❌ Failed to import MCP server"
-    exit 1
-}
+echo "✅ PostgreSQL is ready"
 
-echo "✅ Environment setup complete. Starting MCP server..."
+# =========================
+# Run server (triggers migrations)
+# =========================
+echo "🚀 Launching server..."
 
 python src/web_server.py
